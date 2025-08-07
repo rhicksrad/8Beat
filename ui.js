@@ -88,6 +88,9 @@ function setupTrackEvents(trackEl, track, idx) {
   const volSlider = trackEl.querySelector('.volume-slider');
   const meterFill = trackEl.querySelector('.volume-meter-fill');
   
+  // store last non-muted volume
+  track._lastVolume = track._lastVolume ?? track.volume ?? 1.0;
+  
   select.addEventListener('change', (e) => {
     track.type = e.target.value;
     if (track.type === 'sample' && !track.sample) {
@@ -98,25 +101,47 @@ function setupTrackEvents(trackEl, track, idx) {
   muteBtn.addEventListener('click', () => {
     track.muted = !track.muted;
     muteBtn.classList.toggle('active', track.muted);
+    if (track.muted) {
+      // remember current volume and set to 0
+      track._lastVolume = track.volume;
+      track.volume = 0;
+      volSlider.value = '0';
+      volSlider.disabled = true;
+      meterFill.style.height = '0%';
+    } else {
+      // restore volume
+      const restore = typeof track._lastVolume === 'number' ? track._lastVolume : 1.0;
+      track.volume = restore;
+      volSlider.value = String(restore);
+      volSlider.disabled = false;
+      meterFill.style.height = `${restore * 100}%`;
+    }
+    // if soloed and muted, un-solo to avoid confusion
     if (track.muted) soloBtn.classList.remove('active');
   });
   
   soloBtn.addEventListener('click', () => {
     track.soloed = !track.soloed;
     soloBtn.classList.toggle('active', track.soloed);
-    if (track.soloed) muteBtn.classList.remove('active');
+    if (track.soloed) {
+      // ensure not muted
+      if (track.muted) muteBtn.click();
+    }
   });
   
   volSlider.addEventListener('input', (e) => {
-    track.volume = parseFloat(e.target.value);
+    const val = parseFloat(e.target.value);
+    track.volume = isFinite(val) ? val : 0;
     meterFill.style.height = `${track.volume * 100}%`;
-    // Add visual feedback
+    // visual feedback color
     meterFill.style.background = track.volume > 0.8 ? 
       'linear-gradient(to top, #ff4444, #ff6666)' : 
       'linear-gradient(to top, var(--accent-primary), var(--accent-secondary))';
   });
   
-  // Initialize volume meter
+  // Initialize volume meter and slider state
+  volSlider.value = String(track.volume);
+  volSlider.disabled = !!track.muted;
   meterFill.style.height = `${track.volume * 100}%`;
 }
 

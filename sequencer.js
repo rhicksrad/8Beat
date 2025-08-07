@@ -1,5 +1,25 @@
 // Sequencer Module - Playback, scheduling, and audio generation
 
+// Helper: determine if a track should be audible given mute/solo state
+function isTrackAudible(track) {
+  if (!track) return false;
+  if (track.muted) return false;
+  const anySolo = state.tracks && state.tracks.some(t => t.soloed);
+  if (anySolo) return !!track.soloed;
+  return true;
+}
+
+// Compute audible gain from track volume and step velocity (1..3)
+function computeTrackGain(track, velocity) {
+  const vIdx = Math.max(1, Math.min(3, velocity | 0));
+  const velocityGains = { 1: 0.25, 2: 0.5, 3: 0.9 };
+  const velGain = velocityGains[vIdx] || 0.5;
+  const vol = typeof track.volume === 'number' ? track.volume : 1;
+  // Non-linear curve for more noticeable control and full mute at 0
+  const volCurve = Math.pow(Math.max(0, Math.min(1, vol)), 1.5);
+  return Math.max(0, Math.min(1, velGain * volCurve));
+}
+
 // Playback functions
 function play() {
   if (state.playing) return;
@@ -72,7 +92,7 @@ function schedule(time) {
   
   // Schedule track events
   state.tracks.forEach((track, trackIdx) => {
-    if (track.muted) return;
+    if (!isTrackAudible(track)) return;
     
     const step = state.position % state.steps;
     const velocity = track.steps[step] || 0;
@@ -119,43 +139,43 @@ function updateStepIndicator(step) {
 
 // Play a track at a specific time
 function playTrack(track, time, velocity = 1) {
-  if (!track || track.muted) return;
+  if (!isTrackAudible(track)) return;
   
-  const gain = (track.volume || 1) * (0.3 + velocity * 0.2);
+  const gain = computeTrackGain(track, velocity);
   
   switch (track.type) {
     case 'kick':
       engine.playSine808({
         time,
-        gain,
-        ...track.params
+        ...track.params,
+        gain
       });
       break;
       
     case 'snare':
       engine.playNoise({
         time,
-        gain,
         type: 'white',
-        ...track.params
+        ...track.params,
+        gain
       });
       break;
       
     case 'clap':
       engine.playNoise({
         time,
-        gain,
         type: 'white',
-        ...track.params
+        ...track.params,
+        gain
       });
       break;
       
     case 'hat':
       engine.playNoise({
         time,
-        gain,
         type: 'white',
-        ...track.params
+        ...track.params,
+        gain
       });
       break;
       
@@ -164,8 +184,8 @@ function playTrack(track, time, velocity = 1) {
       engine.playSquare({
         time,
         freq,
-        gain,
-        ...track.params
+        ...track.params,
+        gain
       });
       break;
       
@@ -174,16 +194,16 @@ function playTrack(track, time, velocity = 1) {
       engine.playTriangle({
         time,
         freq: triFreq,
-        gain,
-        ...track.params
+        ...track.params,
+        gain
       });
       break;
       
     case 'noise':
       engine.playNoise({
         time,
-        gain,
-        ...track.params
+        ...track.params,
+        gain
       });
       break;
       
@@ -192,8 +212,8 @@ function playTrack(track, time, velocity = 1) {
         engine.playSample({
           time,
           buffer: track.sample,
-          gain,
-          ...track.params
+          ...track.params,
+          gain
         });
       }
       break;
