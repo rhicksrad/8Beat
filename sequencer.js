@@ -10,14 +10,28 @@ function isTrackAudible(track) {
 }
 
 // Compute audible gain from track volume and step velocity (1..3)
-function computeTrackGain(track, velocity) {
-  const vIdx = Math.max(1, Math.min(3, velocity | 0));
+function computeTrackGain(track, event) {
+  const velocityValue = typeof event === 'object' ? (event?.velocity ?? 1) : event;
+  const vIdx = Math.max(1, Math.min(3, velocityValue | 0));
   const velocityGains = { 1: 0.25, 2: 0.5, 3: 0.9 };
   const velGain = velocityGains[vIdx] || 0.5;
   const vol = typeof track.volume === 'number' ? track.volume : 1;
   // Non-linear curve for more noticeable control and full mute at 0
   const volCurve = Math.pow(Math.max(0, Math.min(1, vol)), 1.5);
   return Math.max(0, Math.min(1, velGain * volCurve));
+}
+
+function getStepEvent(track, step) {
+  if (track.type === 'drum' || track.type === 'sample') {
+    const value = track.steps[step] || 0;
+    return value > 0 ? { velocity: value } : null;
+  }
+  const evt = track.steps[step];
+  if (!evt || typeof evt.noteIndex !== 'number') return null;
+  return {
+    noteIndex: evt.noteIndex,
+    velocity: evt.velocity ?? 2
+  };
 }
 
 // Playback functions
@@ -91,21 +105,21 @@ function schedule(time) {
   }
   
   // Schedule track events
-  state.tracks.forEach((track, trackIdx) => {
+  state.tracks.forEach((track) => {
     if (!isTrackAudible(track)) return;
-    
+
     const step = state.position % state.steps;
-    const velocity = track.steps[step] || 0;
-    
-    if (velocity > 0) {
+    const event = getStepEvent(track, step);
+
+    if (event) {
       // Apply swing
       let swingOffset = 0;
       if (state.swing > 0 && step % 2 === 1) {
         swingOffset = stepTime * state.swing;
       }
-      
+
       const playTime = time + swingOffset;
-      playTrack(track, playTime, velocity);
+      playTrack(track, playTime, event);
     }
   });
   
@@ -138,85 +152,98 @@ function updateStepIndicator(step) {
 }
 
 // Play a track at a specific time
-function playTrack(track, time, velocity = 1) {
+function playTrack(track, time, event = { velocity: 1 }) {
   if (!isTrackAudible(track)) return;
-  
-  const gain = computeTrackGain(track, velocity);
-  
+
+  const gain = computeTrackGain(track, event);
+
   switch (track.type) {
-    case 'kick':
-      engine.playSine808({
-        time,
-        ...track.params,
-        gain
-      });
-      break;
-      
-    case 'snare':
-      engine.playNoise({
-        time,
-        type: 'white',
-        ...track.params,
-        gain
-      });
-      break;
-      
-    case 'clap':
-      engine.playNoise({
-        time,
-        type: 'white',
-        ...track.params,
-        gain
-      });
-      break;
-      
-    case 'hat':
-      engine.playNoise({
-        time,
-        type: 'white',
-        ...track.params,
-        gain
-      });
-      break;
-      
-    case 'square':
-      const freq = track.baseNote ? noteToFreq(track.baseNote) : 440;
-      engine.playSquare({
-        time,
-        freq,
-        ...track.params,
-        gain
-      });
-      break;
-      
-    case 'triangle':
-      const triFreq = track.baseNote ? noteToFreq(track.baseNote) : 440;
-      engine.playTriangle({
-        time,
-        freq: triFreq,
-        ...track.params,
-        gain
-      });
-      break;
-      
-    case 'noise':
-      engine.playNoise({
-        time,
-        ...track.params,
-        gain
-      });
-      break;
-      
-    case 'sample':
-      if (track.sample) {
-        engine.playSample({
+    case 'drum': {
+      const type = track.drumType || 'noise';
+      if (type === 'kick') {
+        engine.playSine808({
           time,
-          buffer: track.sample,
-          ...track.params,
+          ...(track.params || {}),
+          gain
+        });
+      } else {
+        const noiseType = type === 'snare' || type === 'hat' ? 'white' : (track.params?.type || 'white');
+        engine.playNoise({
+          time,
+          type: noiseType,
+          ...(track.params || {}),
           gain
         });
       }
       break;
+    }
+
+    case 'melody': {
+      const slice = getTrackScale(track);
+      if (!slice.length) return;
+      const index = clamp(event.noteIndex ?? track.previewNoteIndex ?? 0, 0, slice.length - 1);
+      const note = slice[index];
+      if (!note) return;
+      const payload = {
+        time,
+        freq: note.freq,
+        ...(track.params || {}),
+        gain
+      };
+      if (track.waveform === 'triangle') {
+        engine.playTriangle(payload);
+      } else if (track.waveform === 'square') {
+        engine.playSquare(payload);
+      } else {
+        engine.playPulse({
+          ...payload,
+          dutyCycle: track.dutyCycle ?? 0.5
+        });
+      }
+      break;
+    }
+
+    case 'arpeggio': {
+      const slice = getTrackScale(track);
+      if (!slice.length) return;
+      const start = clamp(event.noteIndex ?? track.previewNoteIndex ?? 0, 0, slice.length - 1);
+      const span = Math.max(1, track.arpSpan || 4);
+      const notes = slice.slice(start, Math.min(slice.length, start + span));
+      if (!notes.length) return;
+      engine.playArp({
+        time,
+        bpm: state.bpm,
+        notes,
+        pattern: track.arpPattern || 'up',
+        steps: notes.length,
+        subdivision: track.arpSubdivision || 4,
+        waveform: track.waveform || 'pulse',
+        dutyCycle: track.dutyCycle ?? 0.4,
+        params: track.params || {},
+        gain
+      });
+      break;
+    }
+
+    case 'sample': {
+      if (track.sample) {
+        engine.playSample({
+          time,
+          buffer: track.sample,
+          ...(track.params || {}),
+          gain
+        });
+      }
+      break;
+    }
+
+    default: {
+      engine.playNoise({
+        time,
+        ...(track.params || {}),
+        gain
+      });
+    }
   }
 }
 
