@@ -87,7 +87,6 @@ function generateScale(root, mode, { startOctave = 2, octaves = 4 } = {}) {
   return notes;
 }
 
-
 class ChipEngine {
   constructor() {
     this.ac = null;
@@ -624,7 +623,6 @@ class ChipEngine {
 }
 
 ChipEngine._pulseCache = new Map();
-
 
 const KEY_POOL = ['Q','W','E','R','T','Y','U','I','O','P','A','S','D','F','G','H','J','K','L','Z','X','C','V','B','N','M','1','2','3','4','5','6','7','8','9','0'];
 const DEFAULT_ROOT = 'C';
