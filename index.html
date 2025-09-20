@@ -1,109 +1,230 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Web 808 Drum Machine</title>
-  <link rel="stylesheet" href="styles.css">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>8Beat Chiptune Studio</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-<div class="app">
-    <!-- Header -->
+  <div class="app">
     <header class="header">
-      <div class="header-title">
-        <div class="header-logo"></div>
-        <div class="header-text">
-          <h1>Web 808 Drum Machine</h1>
-          <div class="subtitle">Professional drum machine with 25 presets, effects, and recording</div>
-      </div>
-    </div>
-      
-    <div class="transport">
-      <button class="btn primary" id="play">Play</button>
-      <button class="btn" id="stop">Stop</button>
-        <button class="btn" id="recordBtn">Record</button>
-        <button class="btn" id="downloadBtn">Download</button>
-        <span id="recordTime" class="text-accent"></span>
-        
-        <div class="control-group">
-          <label>Tempo</label>
-        <input id="bpm" type="range" min="40" max="220" value="120" />
-          <span class="value-display" id="bpmVal">120</span>
-      </div>
-        
-        <div class="control-group">
-          <label>Steps</label>
-        <select id="steps">
-          <option>8</option>
-          <option selected>16</option>
-          <option>32</option>
-        </select>
-      </div>
-        
-        <div class="control-group">
-          <label>Step</label>
-          <span class="value-display" id="stepCounter">0</span>
+      <div class="hero">
+        <span class="hero-badge">Chiptune Studio</span>
+        <h1>8Beat Chiptune Studio</h1>
+        <p class="hero-copy">Design full retro game soundtracks with layered pulse leads, crunchy drums, and instant chip FX.</p>
+        <div class="hero-tags">
+          <span>Arpeggiator</span>
+          <span>Chip FX</span>
+          <span>Multi-track</span>
+          <span>Live Pads</span>
         </div>
-    </div>
-  </header>
+      </div>
+      <div class="transport">
+        <div class="transport-main">
+          <button class="btn primary" id="play">Play</button>
+          <button class="btn" id="stop">Stop</button>
+          <button class="btn" id="recordBtn">Record</button>
+          <button class="btn" id="downloadBtn">Download</button>
+          <span id="recordTime" class="transport-time"></span>
+        </div>
+        <div class="transport-controls">
+          <div class="control-group inline">
+            <label for="bpm">Tempo</label>
+            <input id="bpm" type="range" min="40" max="220" value="120" />
+            <span class="value-display" id="bpmVal">120</span>
+          </div>
+          <div class="control-group inline">
+            <label for="steps">Steps</label>
+            <select id="steps">
+              <option value="8">8</option>
+              <option value="16" selected>16</option>
+              <option value="32">32</option>
+            </select>
+          </div>
+        </div>
+      </div>
 
-    <!-- Pads Section -->
-    <section class="pads-section">
-      <div class="pads-grid"></div>
+      <div class="super-randomizer" id="superRandomizer">
+        <div class="super-randomizer-header">
+          <div class="super-randomizer-copy">
+            <h2>Super Randomizer</h2>
+            <p>Automate fresh chip jams by shuffling your studio on a timer.</p>
+          </div>
+          <button class="btn primary" id="superRandomToggle" aria-pressed="false">Start Chaos</button>
+        </div>
+        <div class="super-randomizer-options">
+          <label class="super-randomizer-option">
+            <input type="checkbox" id="superRandomTracks" data-feature="tracks" checked />
+            <span>Tracks</span>
+          </label>
+          <label class="super-randomizer-option">
+            <input type="checkbox" id="superRandomInstruments" data-feature="instruments" checked />
+            <span>Instruments</span>
+          </label>
+          <label class="super-randomizer-option">
+            <input type="checkbox" id="superRandomKey" data-feature="key" checked />
+            <span>Key &amp; Scale</span>
+          </label>
+          <label class="super-randomizer-option">
+            <input type="checkbox" id="superRandomTempo" data-feature="tempo" checked />
+            <span>Tempo</span>
+          </label>
+          <label class="super-randomizer-option">
+            <input type="checkbox" id="superRandomIntervalToggle" data-feature="interval" checked />
+            <span>Interval</span>
+          </label>
+        </div>
+        <div class="super-randomizer-controls">
+          <div class="control-group inline super-randomizer-interval">
+            <label for="superRandomInterval">Base Interval</label>
+            <input id="superRandomInterval" type="range" min="2" max="20" step="1" value="8" />
+            <span class="value-display" id="superRandomIntervalVal">8s</span>
+          </div>
+          <div class="super-randomizer-status">
+            <span class="label">Next shuffle</span>
+            <span class="value-display" id="superRandomCountdown">--</span>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section class="studio">
+      <aside class="sidebar">
+        <div class="panel scale-panel">
+          <div class="panel-header">
+            <h2>Scale &amp; Key</h2>
+            <p>Harmonic context for melodic lanes</p>
+          </div>
+          <div class="panel-body stack">
+            <div class="control-group">
+              <label for="scaleRoot">Root</label>
+              <select id="scaleRoot">
+                <option>C</option>
+                <option>C#</option>
+                <option>D</option>
+                <option>D#</option>
+                <option>E</option>
+                <option>F</option>
+                <option>F#</option>
+                <option>G</option>
+                <option>G#</option>
+                <option>A</option>
+                <option>A#</option>
+                <option>B</option>
+              </select>
+            </div>
+            <div class="control-group">
+              <label for="scaleMode">Mode</label>
+              <select id="scaleMode">
+                <option value="minor" selected>Minor</option>
+                <option value="major">Major</option>
+                <option value="dorian">Dorian</option>
+                <option value="mixolydian">Mixolydian</option>
+                <option value="lydian">Lydian</option>
+                <option value="phrygian">Phrygian</option>
+                <option value="harmonic">Harmonic Minor</option>
+                <option value="pentatonic">Pentatonic</option>
+                <option value="chip">Chip Special</option>
+              </select>
+            </div>
+            <button class="btn ghost" id="randomizeScaleBtn">Random Scale</button>
+            <div class="scale-preview" id="scalePreview"></div>
+          </div>
+        </div>
+
+        <div class="panel soundboard-panel">
+          <div class="panel-header">
+            <h2>Soundboard</h2>
+            <p>Trigger instant FX</p>
+          </div>
+          <div class="soundboard-grid" id="soundboard"></div>
+        </div>
+
+        <div class="panel utility-panel">
+          <div class="panel-header">
+            <h2>Pattern Tools</h2>
+          </div>
+          <div class="panel-body stack">
+            <button class="btn outline" id="randomizeBtn">Randomize Jam</button>
+            <button class="btn outline" id="clearBtn">Clear All</button>
+            <button class="btn outline" id="loadSampleBtn">Load Sample</button>
+            <input id="loadSampleFile" type="file" accept="audio/*" hidden />
+          </div>
+        </div>
+      </aside>
+
+      <main class="workspace">
+        <div class="sequencer-toolbar">
+          <div class="toolbar-left">
+            <button class="btn ghost" id="addTrackBtn">Add Track</button>
+            <div class="control-group inline">
+              <label for="swing">Swing</label>
+              <input id="swing" type="range" min="0" max="0.6" step="0.01" value="0" />
+              <span class="value-display" id="swingVal">0%</span>
+            </div>
+          </div>
+          <div class="toolbar-right">
+            <div class="control-group inline">
+              <label for="drive">Drive</label>
+              <input id="drive" type="range" min="0" max="1" step="0.01" value="0.25" />
+              <span class="value-display" id="driveVal">0.25</span>
+            </div>
+            <div class="control-group inline">
+              <label for="delayMix">Delay</label>
+              <input id="delayMix" type="range" min="0" max="1" step="0.01" value="0.15" />
+              <span class="value-display" id="delayVal">0.15</span>
+            </div>
+          </div>
+        </div>
+
+        <section class="tracks-section" id="rack"></section>
+
+        <section class="pads-section">
+          <div class="section-header">
+            <h2>Performance Pads</h2>
+            <p>Tap to audition instruments. Shift-click steps to cycle velocity.</p>
+          </div>
+          <div class="pads-grid"></div>
+        </section>
+      </main>
     </section>
 
-    <!-- Tracks Section -->
-    <section class="tracks-section" id="rack"></section>
-
-    <!-- Footer -->
     <footer class="footer">
-      <div class="presets-container" id="presets">
-        <span class="text-muted">Presets:</span>
-        <button class="preset-chip" data-preset="chiptune">Chiptune</button>
-        <button class="preset-chip" data-preset="electro">Electro</button>
-        <button class="preset-chip" data-preset="random">Random</button>
-        <button class="preset-chip" data-preset="clear">Clear</button>
-    </div>
-      
-      <div class="footer-controls">
-        <div class="control-group">
-          <label>Swing</label>
-      <input id="swing" type="range" min="0" max="0.6" step="0.01" value="0" />
-          <span class="value-display" id="swingVal">0%</span>
-    </div>
-        
-        <div class="control-group">
-          <label>Drive</label>
-          <input id="drive" type="range" min="0" max="1" step="0.01" value="0.2" />
-          <span class="value-display" id="driveVal">0.20</span>
-</div>
-
-        <div class="control-group">
-          <label>Delay</label>
-          <input id="delayMix" type="range" min="0" max="1" step="0.01" value="0.15" />
-          <span class="value-display" id="delayVal">0.15</span>
+      <div class="footer-info">
+        <h3>Workflow Tips</h3>
+        <p>Use multiple melodic tracks with different waveforms for leads, bass, and harmonies. Right-click a cell to soften or remove notes and combine with swing for groovy chip rhythms.</p>
+      </div>
+      <div class="footer-meta">
+        <div class="stat">
+          <span class="label">Current Step</span>
+          <span class="value-display" id="stepCounter">0</span>
+        </div>
+        <div class="stat">
+          <span class="label">Scale</span>
+          <span class="value-display" id="scaleSummary">C minor</span>
         </div>
       </div>
-      
-      <div class="manual-buttons">
-        <div class="button-group">
-          <label class="button-label">Sample Loading</label>
-          <button class="btn manual-btn" id="loadSampleBtn">Load Sample</button>
-          <input id="loadSampleFile" type="file" accept="audio/*" style="display:none" />
-        </div>
-    </div>
     </footer>
-    </div>
+  </div>
 
-  <!-- Scripts -->
+  <div class="instrument-overlay" id="instrumentOverlay">
+    <div class="overlay-content">
+      <div class="overlay-header">
+        <h2>Select an instrument</h2>
+        <button class="btn ghost" id="closeOverlayBtn">Close</button>
+      </div>
+      <div class="instrument-grid" id="instrumentGrid"></div>
+    </div>
+  </div>
+
   <script src="app.js"></script>
   <script src="ui.js"></script>
   <script src="sequencer.js"></script>
   <script>
-    // Initialize the app when DOM is ready
     document.addEventListener('DOMContentLoaded', () => {
       initApp();
-});
-</script>
+    });
+  </script>
 </body>
 </html>

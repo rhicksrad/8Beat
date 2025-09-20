@@ -1,10 +1,93 @@
-// Modern Web 808 Drum Machine - JavaScript
+// 8Beat Chiptune Studio - Core App & Audio Engine
 
-// Utility functions
+// Utility helpers
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 
-// Audio Engine
+const NOTE_INDEX = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const NOTE_MAP = {
+  C: 0,
+  'C#': 1,
+  DB: 1,
+  D: 2,
+  'D#': 3,
+  EB: 3,
+  E: 4,
+  F: 5,
+  'F#': 6,
+  GB: 6,
+  G: 7,
+  'G#': 8,
+  AB: 8,
+  A: 9,
+  'A#': 10,
+  BB: 10,
+  B: 11
+};
+
+function noteToFreq(note) {
+  const A4 = 440;
+  const m = (note || '').toString().match(/^([A-G](?:#|b)?)(-?\d+)$/i);
+  if (!m) return 440;
+  const p = m[1].toUpperCase();
+  const o = parseInt(m[2], 10);
+  const semitone = NOTE_MAP[p];
+  if (!isFinite(semitone)) return 440;
+  const n = semitone + (o - 4) * 12;
+  return A4 * Math.pow(2, (n - 9) / 12);
+}
+
+function noteToMidi(note) {
+  const m = (note || '').toString().match(/^([A-G](?:#|b)?)(-?\d+)$/i);
+  if (!m) return 60;
+  const pitch = m[1].toUpperCase();
+  const octave = parseInt(m[2], 10);
+  const semitone = NOTE_MAP[pitch];
+  const base = isFinite(semitone) ? semitone : NOTE_INDEX.indexOf(pitch.replace('B', '#'));
+  const idx = base >= 0 ? base : 0;
+  return idx + (octave + 1) * 12;
+}
+
+function midiToNoteName(midi) {
+  const idx = ((midi % 12) + 12) % 12;
+  const octave = Math.floor(midi / 12) - 1;
+  return `${NOTE_INDEX[idx]}${octave}`;
+}
+
+const SCALE_MODES = {
+  major:       [2, 2, 1, 2, 2, 2, 1],
+  minor:       [2, 1, 2, 2, 1, 2, 2],
+  dorian:      [2, 1, 2, 2, 2, 1, 2],
+  mixolydian:  [2, 2, 1, 2, 2, 1, 2],
+  lydian:      [2, 2, 2, 1, 2, 2, 1],
+  phrygian:    [1, 2, 2, 2, 1, 2, 2],
+  harmonic:    [2, 1, 2, 2, 1, 3, 1],
+  pentatonic:  [2, 2, 3, 2, 3],
+  chip:        [2, 1, 4, 1, 4]
+};
+
+function generateScale(root, mode, { startOctave = 2, octaves = 4 } = {}) {
+  const intervals = SCALE_MODES[mode] || SCALE_MODES.minor;
+  const rootIndex = NOTE_INDEX.indexOf(root.toUpperCase());
+  const notes = [];
+  if (rootIndex < 0) return notes;
+
+  let midi = (startOctave + 1) * 12 + rootIndex;
+  const steps = intervals.length;
+  for (let o = 0; o < octaves; o++) {
+    for (let i = 0; i < steps; i++) {
+      const label = midiToNoteName(midi);
+      notes.push({ label, freq: noteToFreq(label) });
+      midi += intervals[i % steps];
+    }
+  }
+
+  const finalLabel = midiToNoteName(midi);
+  notes.push({ label: finalLabel, freq: noteToFreq(finalLabel) });
+  return notes;
+}
+
+
 class ChipEngine {
   constructor() {
     this.ac = null;
@@ -22,14 +105,14 @@ class ChipEngine {
 
   ensure() {
     if (this.ac) return;
-    
+
     const Ctor = window.AudioContext || window.webkitAudioContext;
     if (!Ctor) {
-      console.warn("WebAudio not supported");
+      console.warn('WebAudio not supported');
       return;
     }
-    
-    const ac = new Ctor({ latencyHint: "interactive" });
+
+    const ac = new Ctor({ latencyHint: 'interactive' });
     const limit = ac.createDynamicsCompressor();
     limit.threshold.value = -6;
     limit.knee.value = 30;
@@ -38,13 +121,12 @@ class ChipEngine {
     limit.release.value = 0.25;
 
     const master = ac.createGain();
-    master.gain.value = 0.9;
+    master.gain.value = 0.92;
 
-    // FX: Drive (waveshaper) -> Delay -> Output
     const drive = ac.createWaveShaper();
     const driveGain = ac.createGain();
-    driveGain.gain.value = 0.2;
-    drive.curve = ChipEngine.makeDriveCurve(0.2);
+    driveGain.gain.value = 0.25;
+    drive.curve = ChipEngine.makeDriveCurve(0.25);
 
     const delay = ac.createDelay(1.0);
     delay.delayTime.value = 0.25;
@@ -54,9 +136,7 @@ class ChipEngine {
     delayMix.gain.value = 0.15;
 
     master.connect(driveGain).connect(drive);
-    // dry path
     drive.connect(limit);
-    // delay path
     drive.connect(delay);
     delay.connect(delayFb).connect(delay);
     delay.connect(delayMix).connect(limit);
@@ -70,7 +150,6 @@ class ChipEngine {
     metGain.gain.value = 0.0;
     metGain.connect(limit);
 
-    // Recording destination
     const mediaDest = ac.createMediaStreamDestination();
     out.connect(mediaDest);
 
@@ -90,11 +169,11 @@ class ChipEngine {
   async resume() {
     this.ensure();
     if (!this.ac) return;
-    if (this.ac.state !== "running") {
+    if (this.ac.state !== 'running') {
       try {
         await this.ac.resume();
-      } catch (e) {
-        console.warn("AudioContext resume failed", e);
+      } catch (err) {
+        console.warn('AudioContext resume failed', err);
       }
     }
   }
@@ -111,9 +190,77 @@ class ChipEngine {
     const deg = Math.PI / 180;
     for (let i = 0; i < n; ++i) {
       const x = (i * 2) / n - 1;
-      curve[i] = (3 + k) * x * 20 * deg / (Math.PI + k * Math.abs(x));
+      curve[i] = ((3 + k) * x * 20 * deg) / (Math.PI + k * Math.abs(x));
     }
     return curve;
+  }
+
+  static pulseWave(ac, duty) {
+    const amt = clamp(duty, 0.05, 0.95);
+    const key = amt.toFixed(3);
+    if (!ChipEngine._pulseCache) {
+      ChipEngine._pulseCache = new Map();
+    }
+    if (ChipEngine._pulseCache.has(key)) {
+      return ChipEngine._pulseCache.get(key);
+    }
+    const harmonics = 32;
+    const real = new Float32Array(harmonics);
+    const imag = new Float32Array(harmonics);
+    for (let n = 1; n < harmonics; n++) {
+      const theta = n * Math.PI * amt;
+      imag[n] = (2 / (n * Math.PI)) * Math.sin(theta);
+      real[n] = 0;
+    }
+    const wave = ac.createPeriodicWave(real, imag, { disableNormalization: false });
+    ChipEngine._pulseCache.set(key, wave);
+    return wave;
+  }
+
+  static resolveArpSequence(notes, steps, pattern) {
+    const pool = Array.isArray(notes) ? notes.filter(Boolean) : [];
+    if (!pool.length) return [];
+    const target = Math.max(1, steps || pool.length);
+    const sequence = [];
+    const append = (arr) => {
+      for (const note of arr) {
+        if (sequence.length >= target) break;
+        sequence.push(note);
+      }
+    };
+
+    switch (pattern) {
+      case 'down':
+        append(pool.slice().reverse());
+        break;
+      case 'bounce':
+      case 'updown': {
+        const asc = pool.slice();
+        const desc = pool.slice(0, -1).reverse();
+        const combined = asc.concat(desc);
+        while (sequence.length < target) {
+          append(combined);
+        }
+        break;
+      }
+      case 'random':
+        while (sequence.length < target) {
+          const idx = Math.floor(Math.random() * pool.length);
+          sequence.push(pool[idx]);
+        }
+        break;
+      case 'chord':
+        append(pool);
+        break;
+      default:
+        append(pool);
+        break;
+    }
+
+    while (sequence.length < target) {
+      append(pool);
+    }
+    return sequence.slice(0, target);
   }
 
   setDrive(amount) {
@@ -148,8 +295,8 @@ class ChipEngine {
       const stream = this.mediaDest.stream;
       const rec = new MediaRecorder(stream, { mimeType: 'audio/webm' });
       return rec;
-    } catch (e) {
-      console.warn('MediaRecorder unsupported or blocked', e);
+    } catch (err) {
+      console.warn('MediaRecorder unsupported or blocked', err);
       return null;
     }
   }
@@ -159,7 +306,8 @@ class ChipEngine {
     if (!this.ac) return null;
     try {
       return await this.ac.decodeAudioData(arrayBuffer);
-    } catch {
+    } catch (err) {
+      console.warn('decodeAudioData failed', err);
       return null;
     }
   }
@@ -177,14 +325,14 @@ class ChipEngine {
     src.start(t0);
   }
 
-  playSine808({ time, baseFreq = 55, pitchDecay = 0.02, duration = 0.6, gain = 0.9, attack = 0.001, decay = 0.1, sustain = 0.0, release = 0.3 }) {
+  playSine808({ time, baseFreq = 55, pitchDecay = 0.03, duration = 0.7, gain = 0.95, attack = 0.001, decay = 0.12, sustain = 0.0, release = 0.3 }) {
     this.ensure();
     if (!this.ac) return;
     const ac = this.ac;
     const t0 = isFinite(time) ? time : ac.currentTime;
     const osc = ac.createOscillator();
-    osc.type = "sine";
-    osc.frequency.setValueAtTime(Math.max(20, baseFreq * 7), t0);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(Math.max(20, baseFreq * 8), t0);
     osc.frequency.exponentialRampToValueAtTime(Math.max(20, baseFreq), t0 + clamp(pitchDecay, 0.001, 1));
 
     const vca = ac.createGain();
@@ -192,97 +340,107 @@ class ChipEngine {
     osc.connect(vca).connect(this.master);
 
     const g = vca.gain;
-    const A = clamp(attack, 0.0003, 0.2), D = clamp(decay, 0.01, 1), S = clamp(sustain, 0, 1), R = clamp(release, 0.01, 2);
+    const A = clamp(attack, 0.0003, 0.2);
+    const D = clamp(decay, 0.01, 1);
+    const S = clamp(sustain, 0, 1);
+    const R = clamp(release, 0.01, 2);
     const tEnd = t0 + clamp(duration, 0.05, 4) + R;
     g.setValueAtTime(0, t0);
     g.linearRampToValueAtTime(clamp(gain, 0, 1), t0 + A);
-    g.linearRampToValueAtTime(clamp(gain,0,1) * S, t0 + A + D);
-    g.setTargetAtTime(0, t0 + clamp(duration,0.05,4), R / 3);
+    g.linearRampToValueAtTime(clamp(gain, 0, 1) * S, t0 + A + D);
+    g.setTargetAtTime(0, t0 + clamp(duration, 0.05, 4), R / 3);
 
     osc.start(t0);
     osc.stop(tEnd);
   }
 
-  playSquare({ time, freq, duration = 0.2, gain = 0.5, attack = 0.002, decay = 0.08, sustain = 0.2, release = 0.08, filterHz = 12000 }) {
+  playSquare({ time, freq, duration = 0.25, gain = 0.6, attack = 0.002, decay = 0.08, sustain = 0.25, release = 0.08, filterHz = 12000 }) {
     this.ensure();
     if (!this.ac) return;
     const ac = this.ac;
     const t0 = isFinite(time) ? time : ac.currentTime;
 
     const osc = ac.createOscillator();
-    osc.type = "square";
+    osc.type = 'square';
     osc.frequency.value = isFinite(freq) ? freq : 440;
 
     const vca = ac.createGain();
     vca.gain.value = 0;
 
     const filt = ac.createBiquadFilter();
-    filt.type = "lowpass";
+    filt.type = 'lowpass';
     filt.frequency.value = isFinite(filterHz) ? filterHz : 12000;
     filt.Q.value = 0.6;
 
     osc.connect(filt).connect(vca).connect(this.master);
 
     const g = vca.gain;
-    const A = clamp(attack, 0.0005, 1), D = clamp(decay, 0.001, 2), S = clamp(sustain, 0, 1), R = clamp(release, 0.001, 2);
+    const A = clamp(attack, 0.0005, 1);
+    const D = clamp(decay, 0.001, 2);
+    const S = clamp(sustain, 0, 1);
+    const R = clamp(release, 0.001, 2);
     const tEnd = t0 + clamp(duration, 0.01, 5) + R;
     g.cancelScheduledValues(t0);
     g.setValueAtTime(0, t0);
     g.linearRampToValueAtTime(clamp(gain, 0, 1), t0 + A);
-    g.linearRampToValueAtTime(clamp(gain,0,1) * S, t0 + A + D);
-    g.setTargetAtTime(0, t0 + clamp(duration,0.01,5), R / 3);
+    g.linearRampToValueAtTime(clamp(gain, 0, 1) * S, t0 + A + D);
+    g.setTargetAtTime(0, t0 + clamp(duration, 0.01, 5), R / 3);
 
     osc.start(t0);
     osc.stop(tEnd);
   }
 
-  playTriangle({ time, freq, duration = 0.25, gain = 0.5, attack = 0.003, decay = 0.06, sustain = 0.25, release = 0.08, filterHz = 10000 }) {
+  playTriangle({ time, freq, duration = 0.3, gain = 0.55, attack = 0.003, decay = 0.06, sustain = 0.3, release = 0.1, filterHz = 8000 }) {
     this.ensure();
     if (!this.ac) return;
     const ac = this.ac;
     const t0 = isFinite(time) ? time : ac.currentTime;
 
     const osc = ac.createOscillator();
-    osc.type = "triangle";
+    osc.type = 'triangle';
     osc.frequency.value = isFinite(freq) ? freq : 440;
 
     const vca = ac.createGain();
     vca.gain.value = 0;
 
     const filt = ac.createBiquadFilter();
-    filt.type = "lowpass";
-    filt.frequency.value = isFinite(filterHz) ? filterHz : 10000;
+    filt.type = 'lowpass';
+    filt.frequency.value = isFinite(filterHz) ? filterHz : 8000;
     filt.Q.value = 0.5;
 
     osc.connect(filt).connect(vca).connect(this.master);
 
     const g = vca.gain;
-    const A = clamp(attack, 0.0005, 1), D = clamp(decay, 0.001, 2), S = clamp(sustain, 0, 1), R = clamp(release, 0.001, 2);
+    const A = clamp(attack, 0.0005, 1);
+    const D = clamp(decay, 0.001, 2);
+    const S = clamp(sustain, 0, 1);
+    const R = clamp(release, 0.001, 2);
     const tEnd = t0 + clamp(duration, 0.01, 5) + R;
     g.cancelScheduledValues(t0);
     g.setValueAtTime(0, t0);
     g.linearRampToValueAtTime(clamp(gain, 0, 1), t0 + A);
-    g.linearRampToValueAtTime(clamp(gain,0,1) * S, t0 + A + D);
-    g.setTargetAtTime(0, t0 + clamp(duration,0.01,5), R / 3);
+    g.linearRampToValueAtTime(clamp(gain, 0, 1) * S, t0 + A + D);
+    g.setTargetAtTime(0, t0 + clamp(duration, 0.01, 5), R / 3);
 
     osc.start(t0);
     osc.stop(tEnd);
   }
 
-  playNoise({ time, duration = 0.15, gain = 0.55, attack = 0.001, decay = 0.06, sustain = 0.2, release = 0.05, type = "white", hp = 200, lp = 8000 }) {
+  playNoise({ time, duration = 0.18, gain = 0.55, attack = 0.001, decay = 0.06, sustain = 0.2, release = 0.05, type = 'white', hp = 200, lp = 8000 }) {
     this.ensure();
     if (!this.ac) return;
     const ac = this.ac;
     const t0 = isFinite(time) ? time : ac.currentTime;
 
-    const length = Math.max(1, Math.floor(ac.sampleRate * clamp(duration,0.01,2) * 2));
+    const length = Math.max(1, Math.floor(ac.sampleRate * clamp(duration, 0.01, 2) * 2));
     const buffer = ac.createBuffer(1, length, ac.sampleRate);
     const data = buffer.getChannelData(0);
+    let pink = 0;
     for (let i = 0; i < length; i++) {
-      let v = (Math.random() * 2 - 1);
-      if (type === "pink") {
-        const last = i ? data[i - 1] : 0;
-        v = (v + last) * 0.5;
+      let v = Math.random() * 2 - 1;
+      if (type === 'pink') {
+        pink = 0.98 * pink + 0.02 * v;
+        v = pink;
       }
       data[i] = v;
     }
@@ -295,26 +453,150 @@ class ChipEngine {
     vca.gain.value = 0;
 
     const hpF = ac.createBiquadFilter();
-    hpF.type = "highpass";
+    hpF.type = 'highpass';
     hpF.frequency.value = clamp(hp, 20, 16000);
 
     const lpF = ac.createBiquadFilter();
-    lpF.type = "lowpass";
+    lpF.type = 'lowpass';
     lpF.frequency.value = clamp(lp, 200, 20000);
 
     src.connect(hpF).connect(lpF).connect(vca).connect(this.master);
 
     const g = vca.gain;
-    const A = clamp(attack, 0.0003, 1), D = clamp(decay, 0.001, 2), S = clamp(sustain, 0, 1), R = clamp(release, 0.001, 2);
+    const A = clamp(attack, 0.0003, 1);
+    const D = clamp(decay, 0.001, 2);
+    const S = clamp(sustain, 0, 1);
+    const R = clamp(release, 0.001, 2);
     const tEnd = t0 + clamp(duration, 0.01, 5) + R;
     g.cancelScheduledValues(t0);
     g.setValueAtTime(0, t0);
-    g.linearRampToValueAtTime(clamp(gain,0,1), t0 + A);
-    g.linearRampToValueAtTime(clamp(gain,0,1) * S, t0 + A + D);
-    g.setTargetAtTime(0, t0 + clamp(duration,0.01,5), R / 3);
+    g.linearRampToValueAtTime(clamp(gain, 0, 1), t0 + A);
+    g.linearRampToValueAtTime(clamp(gain, 0, 1) * S, t0 + A + D);
+    g.setTargetAtTime(0, t0 + clamp(duration, 0.01, 5), R / 3);
 
     src.start(t0);
     src.stop(tEnd);
+  }
+
+  playPulse({ time, freq, dutyCycle = 0.5, duration = 0.25, gain = 0.6, attack = 0.0015, decay = 0.08, sustain = 0.25, release = 0.08, filterHz = 12000 }) {
+    this.ensure();
+    if (!this.ac) return;
+    const ac = this.ac;
+    const t0 = isFinite(time) ? time : ac.currentTime;
+
+    const osc = ac.createOscillator();
+    const wave = ChipEngine.pulseWave(ac, dutyCycle);
+    if (wave) osc.setPeriodicWave(wave);
+    else osc.type = 'square';
+    osc.frequency.value = isFinite(freq) ? freq : 440;
+
+    const vca = ac.createGain();
+    vca.gain.value = 0;
+
+    const filt = ac.createBiquadFilter();
+    filt.type = 'lowpass';
+    filt.frequency.value = isFinite(filterHz) ? filterHz : 12000;
+    filt.Q.value = 0.7;
+
+    osc.connect(filt).connect(vca).connect(this.master);
+
+    const g = vca.gain;
+    const A = clamp(attack, 0.0005, 1);
+    const D = clamp(decay, 0.001, 2);
+    const S = clamp(sustain, 0, 1);
+    const R = clamp(release, 0.001, 2);
+    const tEnd = t0 + clamp(duration, 0.01, 5) + R;
+    g.cancelScheduledValues(t0);
+    g.setValueAtTime(0, t0);
+    g.linearRampToValueAtTime(clamp(gain, 0, 1), t0 + A);
+    g.linearRampToValueAtTime(clamp(gain, 0, 1) * S, t0 + A + D);
+    g.setTargetAtTime(0, t0 + clamp(duration, 0.01, 5), R / 3);
+
+    osc.start(t0);
+    osc.stop(tEnd);
+  }
+
+  playArp({ time, bpm = 120, notes = [], pattern = 'up', steps = 4, subdivision = 4, waveform = 'pulse', dutyCycle = 0.4, params = {}, gain = 0.55 }) {
+    this.ensure();
+    if (!this.ac) return;
+    const sequence = ChipEngine.resolveArpSequence(notes, steps, pattern);
+    if (!sequence.length) return;
+    const ac = this.ac;
+    const stepDur = 60 / Math.max(1, bpm) / Math.max(1, subdivision);
+    const baseTime = isFinite(time) ? time : ac.currentTime;
+
+    sequence.forEach((note, idx) => {
+      const playTime = baseTime + idx * stepDur;
+      const payload = { time: playTime, freq: note.freq, dutyCycle, ...(params || {}), gain };
+      switch (waveform) {
+        case 'triangle':
+          this.playTriangle(payload);
+          break;
+        case 'square':
+          this.playSquare(payload);
+          break;
+        default:
+          this.playPulse(payload);
+          break;
+      }
+    });
+  }
+
+  playFx(name, { time } = {}) {
+    this.ensure();
+    if (!this.ac) return;
+    const ac = this.ac;
+    const t0 = isFinite(time) ? time : ac.currentTime;
+    switch (name) {
+      case 'laser': {
+        const osc = ac.createOscillator();
+        const wave = ChipEngine.pulseWave(ac, 0.2);
+        if (wave) osc.setPeriodicWave(wave); else osc.type = 'square';
+        const vca = ac.createGain();
+        vca.gain.value = 0;
+        osc.frequency.setValueAtTime(1600, t0);
+        osc.frequency.exponentialRampToValueAtTime(90, t0 + 0.55);
+        vca.gain.setValueAtTime(0, t0);
+        vca.gain.linearRampToValueAtTime(0.8, t0 + 0.02);
+        vca.gain.exponentialRampToValueAtTime(0.001, t0 + 0.55);
+        osc.connect(vca).connect(this.master);
+        osc.start(t0);
+        osc.stop(t0 + 0.6);
+        break;
+      }
+      case 'power': {
+        const osc = ac.createOscillator();
+        const wave = ChipEngine.pulseWave(ac, 0.35);
+        if (wave) osc.setPeriodicWave(wave); else osc.type = 'square';
+        const vca = ac.createGain();
+        vca.gain.value = 0;
+        osc.frequency.setValueAtTime(220, t0);
+        osc.frequency.exponentialRampToValueAtTime(880, t0 + 0.35);
+        vca.gain.setValueAtTime(0, t0);
+        vca.gain.linearRampToValueAtTime(0.7, t0 + 0.03);
+        vca.gain.exponentialRampToValueAtTime(0.001, t0 + 0.4);
+        osc.connect(vca).connect(this.master);
+        osc.start(t0);
+        osc.stop(t0 + 0.45);
+        break;
+      }
+      case 'hit': {
+        this.playTriangle({ time: t0, freq: 660, duration: 0.18, gain: 0.6, attack: 0.0008, decay: 0.06, sustain: 0.0, release: 0.12, filterHz: 9000 });
+        break;
+      }
+      case 'explosion': {
+        this.playNoise({ time: t0, duration: 0.6, gain: 0.75, attack: 0.002, decay: 0.35, sustain: 0.1, release: 0.25, type: 'pink', hp: 80, lp: 2000 });
+        break;
+      }
+      case 'coin': {
+        this.playPulse({ time: t0, freq: 1200, dutyCycle: 0.5, duration: 0.18, gain: 0.55, attack: 0.001, decay: 0.05, sustain: 0.0, release: 0.12, filterHz: 8000 });
+        this.playPulse({ time: t0 + 0.12, freq: 1800, dutyCycle: 0.3, duration: 0.12, gain: 0.45, attack: 0.001, decay: 0.04, sustain: 0.0, release: 0.1, filterHz: 9000 });
+        break;
+      }
+      default:
+        this.playNoise({ time: t0, duration: 0.2, gain: 0.4, attack: 0.001, decay: 0.05, sustain: 0.0, release: 0.08, type: 'white', hp: 500, lp: 6000 });
+        break;
+    }
   }
 
   tick(time, strong = false) {
@@ -325,91 +607,712 @@ class ChipEngine {
     const osc = ac.createOscillator();
     const vca = ac.createGain();
     vca.gain.value = 0;
-    osc.type = "square";
-    osc.frequency.value = strong ? 1200 : 900;
+    osc.type = 'square';
+    osc.frequency.value = strong ? 1600 : 1100;
     osc.connect(vca).connect(this.metGain);
 
     const g = vca.gain;
-    const A = 0.001, D = 0.04;
+    const A = 0.001;
+    const D = 0.05;
     g.setValueAtTime(0, t0);
     g.linearRampToValueAtTime(strong ? 0.08 : 0.05, t0 + A);
     g.linearRampToValueAtTime(0, t0 + A + D);
 
     osc.start(t0);
-    osc.stop(t0 + 0.07);
+    osc.stop(t0 + 0.08);
   }
 }
 
-// App State
+ChipEngine._pulseCache = new Map();
+
+
+const KEY_POOL = ['Q','W','E','R','T','Y','U','I','O','P','A','S','D','F','G','H','J','K','L','Z','X','C','V','B','N','M','1','2','3','4','5','6','7','8','9','0'];
+const DEFAULT_ROOT = 'C';
+const DEFAULT_MODE = 'minor';
+
+const trackLibrary = [
+  {
+    id: 'pulseLead',
+    name: 'Pulse Lead',
+    category: 'Melody',
+    type: 'melody',
+    waveform: 'pulse',
+    dutyCycle: 0.25,
+    color: '#ff6b9d',
+    key: 'Q',
+    params: { attack: 0.0015, decay: 0.09, sustain: 0.25, release: 0.16, duration: 0.42, gain: 0.7, filterHz: 10500 },
+    noteOffset: 6,
+    noteSpan: 14,
+    previewNote: 4,
+    volume: 0.85
+  },
+  {
+    id: 'chipBass',
+    name: 'Chip Bass',
+    category: 'Bass',
+    type: 'melody',
+    waveform: 'pulse',
+    dutyCycle: 0.12,
+    color: '#00ff88',
+    key: 'W',
+    params: { attack: 0.002, decay: 0.12, sustain: 0.12, release: 0.09, duration: 0.34, gain: 0.9, filterHz: 4200 },
+    noteOffset: 2,
+    noteSpan: 8,
+    previewNote: 2,
+    volume: 0.95
+  },
+  {
+    id: 'trianglePad',
+    name: 'Triangle Pad',
+    category: 'Harmony',
+    type: 'melody',
+    waveform: 'triangle',
+    color: '#00ccff',
+    key: 'E',
+    params: { attack: 0.01, decay: 0.32, sustain: 0.45, release: 0.45, duration: 0.7, gain: 0.62, filterHz: 7000 },
+    noteOffset: 10,
+    noteSpan: 16,
+    previewNote: 6,
+    volume: 0.75
+  },
+  {
+    id: 'arpRunner',
+    name: 'Arp Runner',
+    category: 'Sequence',
+    type: 'arpeggio',
+    waveform: 'pulse',
+    dutyCycle: 0.4,
+    color: '#ffaa00',
+    key: 'R',
+    params: { attack: 0.001, decay: 0.07, sustain: 0.1, release: 0.12, duration: 0.3, gain: 0.65, filterHz: 9000 },
+    noteOffset: 6,
+    noteSpan: 12,
+    previewNote: 3,
+    arpPattern: 'updown',
+    arpSubdivision: 4,
+    arpSpan: 4,
+    volume: 0.8
+  },
+  {
+    id: 'pulsePluck',
+    name: 'Pulse Pluck',
+    category: 'Melody',
+    type: 'melody',
+    waveform: 'pulse',
+    dutyCycle: 0.18,
+    color: '#ff9f43',
+    key: 'T',
+    params: { attack: 0.001, decay: 0.07, sustain: 0.12, release: 0.18, duration: 0.35, gain: 0.68, filterHz: 9800 },
+    noteOffset: 8,
+    noteSpan: 12,
+    previewNote: 5,
+    volume: 0.8
+  },
+  {
+    id: 'squareLead',
+    name: 'Square Lead',
+    category: 'Melody',
+    type: 'melody',
+    waveform: 'square',
+    color: '#ffd966',
+    key: 'Y',
+    params: { attack: 0.003, decay: 0.16, sustain: 0.4, release: 0.22, duration: 0.55, gain: 0.72, filterHz: 9500 },
+    noteOffset: 7,
+    noteSpan: 13,
+    previewNote: 5,
+    volume: 0.82
+  },
+  {
+    id: 'triangleGlass',
+    name: 'Triangle Glass',
+    category: 'Harmony',
+    type: 'melody',
+    waveform: 'triangle',
+    color: '#8effff',
+    key: 'U',
+    params: { attack: 0.015, decay: 0.28, sustain: 0.5, release: 0.45, duration: 0.7, gain: 0.6, filterHz: 7600 },
+    noteOffset: 10,
+    noteSpan: 16,
+    previewNote: 7,
+    volume: 0.7
+  },
+  {
+    id: 'pulseSync',
+    name: 'Pulse Sync',
+    category: 'Sequence',
+    type: 'arpeggio',
+    waveform: 'pulse',
+    dutyCycle: 0.3,
+    color: '#ff99cc',
+    key: 'I',
+    params: { attack: 0.001, decay: 0.06, sustain: 0.1, release: 0.1, duration: 0.28, gain: 0.6, filterHz: 10000 },
+    noteOffset: 5,
+    noteSpan: 10,
+    previewNote: 3,
+    arpPattern: 'up',
+    arpSubdivision: 6,
+    arpSpan: 5,
+    volume: 0.78
+  },
+  {
+    id: 'lunarPad',
+    name: 'Lunar Pad',
+    category: 'Harmony',
+    type: 'melody',
+    waveform: 'triangle',
+    color: '#8899ff',
+    key: 'O',
+    params: { attack: 0.05, decay: 0.4, sustain: 0.55, release: 0.7, duration: 0.9, gain: 0.55, filterHz: 6800 },
+    noteOffset: 9,
+    noteSpan: 18,
+    previewNote: 8,
+    volume: 0.68
+  },
+  {
+    id: 'bitVoyager',
+    name: 'Bit Voyager',
+    category: 'Melody',
+    type: 'melody',
+    waveform: 'pulse',
+    dutyCycle: 0.2,
+    color: '#ff7f50',
+    key: 'P',
+    params: { attack: 0.002, decay: 0.1, sustain: 0.22, release: 0.2, duration: 0.42, gain: 0.75, filterHz: 11000 },
+    noteOffset: 6,
+    noteSpan: 14,
+    previewNote: 4,
+    volume: 0.84
+  },
+  {
+    id: 'chipKick',
+    name: 'Chip Kick',
+    category: 'Drums',
+    type: 'drum',
+    drumType: 'kick',
+    color: '#ff4757',
+    key: 'A',
+    params: { baseFreq: 55, pitchDecay: 0.04, duration: 0.85, gain: 0.95 }
+  },
+  {
+    id: 'chipSnare',
+    name: 'Bit Snare',
+    category: 'Drums',
+    type: 'drum',
+    drumType: 'snare',
+    color: '#ffaa00',
+    key: 'S',
+    params: { hp: 1400, lp: 8000, duration: 0.19, decay: 0.08, sustain: 0.0, release: 0.05, gain: 0.75 }
+  },
+  {
+    id: 'chipHat',
+    name: 'Noise Hat',
+    category: 'Drums',
+    type: 'drum',
+    drumType: 'hat',
+    color: '#b8b8c8',
+    key: 'D',
+    params: { hp: 6000, lp: 14000, duration: 0.06, decay: 0.04, sustain: 0.0, release: 0.05, gain: 0.5 }
+  },
+  {
+    id: 'chipPerc',
+    name: 'Glitch Perc',
+    category: 'Drums',
+    type: 'drum',
+    drumType: 'noise',
+    color: '#7a5cff',
+    key: 'F',
+    params: { hp: 2000, lp: 9000, duration: 0.12, decay: 0.06, sustain: 0.1, release: 0.08, gain: 0.55 }
+  },
+  {
+    id: 'samplePad',
+    name: 'Sample Player',
+    category: 'Texture',
+    type: 'sample',
+    color: '#ff85ff',
+    key: 'G',
+    params: { gain: 0.8 }
+  },
+  {
+    id: 'chipClap',
+    name: 'Chip Clap',
+    category: 'Drums',
+    type: 'drum',
+    drumType: 'noise',
+    color: '#ffb347',
+    key: 'H',
+    params: { hp: 1800, lp: 12000, duration: 0.15, decay: 0.08, sustain: 0.0, release: 0.15, gain: 0.65 }
+  },
+  {
+    id: 'chipTom',
+    name: 'Chip Tom',
+    category: 'Drums',
+    type: 'drum',
+    drumType: 'kick',
+    color: '#ff7f82',
+    key: 'J',
+    params: { baseFreq: 110, pitchDecay: 0.06, duration: 0.5, gain: 0.7 }
+  },
+  {
+    id: 'chipClave',
+    name: 'Chip Clave',
+    category: 'Drums',
+    type: 'drum',
+    drumType: 'noise',
+    color: '#fcd34d',
+    key: 'K',
+    params: { hp: 4000, lp: 10000, duration: 0.08, decay: 0.03, sustain: 0.0, release: 0.05, gain: 0.55 }
+  },
+  {
+    id: 'chipCrash',
+    name: 'Chip Crash',
+    category: 'Drums',
+    type: 'drum',
+    drumType: 'noise',
+    color: '#c084fc',
+    key: 'L',
+    params: { hp: 2000, lp: 14000, duration: 0.6, decay: 0.3, sustain: 0.0, release: 0.45, gain: 0.7 }
+  },
+  {
+    id: 'deepBass',
+    name: 'Deep Bass',
+    category: 'Bass',
+    type: 'melody',
+    waveform: 'pulse',
+    dutyCycle: 0.1,
+    color: '#10b981',
+    key: 'Z',
+    params: { attack: 0.002, decay: 0.1, sustain: 0.3, release: 0.18, duration: 0.4, gain: 0.85, filterHz: 3800 },
+    noteOffset: 0,
+    noteSpan: 6,
+    previewNote: 1,
+    volume: 0.9
+  },
+  {
+    id: 'pulseStab',
+    name: 'Pulse Stab',
+    category: 'Melody',
+    type: 'melody',
+    waveform: 'pulse',
+    dutyCycle: 0.35,
+    color: '#f87171',
+    key: 'X',
+    params: { attack: 0.001, decay: 0.05, sustain: 0.15, release: 0.12, duration: 0.25, gain: 0.7, filterHz: 9800 },
+    noteOffset: 5,
+    noteSpan: 10,
+    previewNote: 3,
+    volume: 0.78
+  },
+  {
+    id: 'triangleSub',
+    name: 'Triangle Sub',
+    category: 'Harmony',
+    type: 'melody',
+    waveform: 'triangle',
+    color: '#6ee7b7',
+    key: 'C',
+    params: { attack: 0.01, decay: 0.2, sustain: 0.5, release: 0.3, duration: 0.5, gain: 0.75, filterHz: 5200 },
+    noteOffset: 4,
+    noteSpan: 10,
+    previewNote: 2,
+    volume: 0.76
+  },
+  {
+    id: 'squareChord',
+    name: 'Square Chord',
+    category: 'Harmony',
+    type: 'melody',
+    waveform: 'square',
+    color: '#bef264',
+    key: 'V',
+    params: { attack: 0.02, decay: 0.18, sustain: 0.55, release: 0.35, duration: 0.6, gain: 0.6, filterHz: 8600 },
+    noteOffset: 9,
+    noteSpan: 16,
+    previewNote: 7,
+    volume: 0.72
+  },
+  {
+    id: 'pulseDream',
+    name: 'Pulse Dream',
+    category: 'Melody',
+    type: 'melody',
+    waveform: 'pulse',
+    dutyCycle: 0.4,
+    color: '#f472b6',
+    key: 'B',
+    params: { attack: 0.003, decay: 0.12, sustain: 0.3, release: 0.25, duration: 0.48, gain: 0.7, filterHz: 10500 },
+    noteOffset: 8,
+    noteSpan: 14,
+    previewNote: 6,
+    volume: 0.8
+  },
+  {
+    id: 'neoArp',
+    name: 'Neo Arp',
+    category: 'Sequence',
+    type: 'arpeggio',
+    waveform: 'pulse',
+    dutyCycle: 0.26,
+    color: '#34d399',
+    key: 'N',
+    params: { attack: 0.001, decay: 0.05, sustain: 0.08, release: 0.09, duration: 0.24, gain: 0.6, filterHz: 9800 },
+    noteOffset: 5,
+    noteSpan: 12,
+    previewNote: 4,
+    arpPattern: 'random',
+    arpSubdivision: 8,
+    arpSpan: 6,
+    volume: 0.76
+  },
+  {
+    id: 'meteorArp',
+    name: 'Meteor Arp',
+    category: 'Sequence',
+    type: 'arpeggio',
+    waveform: 'square',
+    color: '#93c5fd',
+    key: 'M',
+    params: { attack: 0.001, decay: 0.07, sustain: 0.12, release: 0.1, duration: 0.3, gain: 0.62, filterHz: 10200 },
+    noteOffset: 7,
+    noteSpan: 12,
+    previewNote: 5,
+    arpPattern: 'down',
+    arpSubdivision: 3,
+    arpSpan: 5,
+    volume: 0.78
+  },
+  {
+    id: 'pulseBlade',
+    name: 'Pulse Blade',
+    category: 'Melody',
+    type: 'melody',
+    waveform: 'pulse',
+    dutyCycle: 0.15,
+    color: '#fb7185',
+    key: '1',
+    params: { attack: 0.001, decay: 0.09, sustain: 0.25, release: 0.18, duration: 0.4, gain: 0.68, filterHz: 11500 },
+    noteOffset: 6,
+    noteSpan: 12,
+    previewNote: 4,
+    volume: 0.82
+  },
+  {
+    id: 'pulseTwinkle',
+    name: 'Pulse Twinkle',
+    category: 'Melody',
+    type: 'melody',
+    waveform: 'pulse',
+    dutyCycle: 0.45,
+    color: '#facc15',
+    key: '2',
+    params: { attack: 0.001, decay: 0.05, sustain: 0.1, release: 0.16, duration: 0.3, gain: 0.6, filterHz: 12000 },
+    noteOffset: 11,
+    noteSpan: 14,
+    previewNote: 9,
+    volume: 0.74
+  },
+  {
+    id: 'squareQuasar',
+    name: 'Square Quasar',
+    category: 'Melody',
+    type: 'melody',
+    waveform: 'square',
+    color: '#a855f7',
+    key: '3',
+    params: { attack: 0.004, decay: 0.15, sustain: 0.35, release: 0.28, duration: 0.52, gain: 0.68, filterHz: 9700 },
+    noteOffset: 8,
+    noteSpan: 14,
+    previewNote: 6,
+    volume: 0.79
+  },
+  {
+    id: 'triangleShimmer',
+    name: 'Triangle Shimmer',
+    category: 'Harmony',
+    type: 'melody',
+    waveform: 'triangle',
+    color: '#38bdf8',
+    key: '4',
+    params: { attack: 0.02, decay: 0.25, sustain: 0.55, release: 0.4, duration: 0.6, gain: 0.62, filterHz: 7500 },
+    noteOffset: 9,
+    noteSpan: 16,
+    previewNote: 7,
+    volume: 0.73
+  },
+  {
+    id: 'chipGlitch',
+    name: 'Chip Glitch',
+    category: 'Drums',
+    type: 'drum',
+    drumType: 'noise',
+    color: '#fb923c',
+    key: '5',
+    params: { hp: 2500, lp: 10000, duration: 0.2, decay: 0.12, sustain: 0.05, release: 0.18, gain: 0.6 }
+  },
+  {
+    id: 'chipZap',
+    name: 'Chip Zap',
+    category: 'Drums',
+    type: 'drum',
+    drumType: 'noise',
+    color: '#22d3ee',
+    key: '6',
+    params: { hp: 5000, lp: 12000, duration: 0.1, decay: 0.04, sustain: 0.0, release: 0.1, gain: 0.55 }
+  },
+  {
+    id: 'chip808',
+    name: 'Chip 808',
+    category: 'Drums',
+    type: 'drum',
+    drumType: 'kick',
+    color: '#f97316',
+    key: '7',
+    params: { baseFreq: 45, pitchDecay: 0.05, duration: 1.0, gain: 0.9 }
+  },
+  {
+    id: 'pulseMono',
+    name: 'Pulse Mono',
+    category: 'Bass',
+    type: 'melody',
+    waveform: 'pulse',
+    dutyCycle: 0.22,
+    color: '#60a5fa',
+    key: '8',
+    params: { attack: 0.002, decay: 0.1, sustain: 0.22, release: 0.16, duration: 0.36, gain: 0.72, filterHz: 9200 },
+    noteOffset: 4,
+    noteSpan: 11,
+    previewNote: 3,
+    volume: 0.8
+  },
+  {
+    id: 'triangleWave',
+    name: 'Triangle Wave',
+    category: 'Melody',
+    type: 'melody',
+    waveform: 'triangle',
+    color: '#4ade80',
+    key: '9',
+    params: { attack: 0.012, decay: 0.22, sustain: 0.45, release: 0.35, duration: 0.5, gain: 0.66, filterHz: 8000 },
+    noteOffset: 7,
+    noteSpan: 13,
+    previewNote: 5,
+    volume: 0.77
+  },
+  {
+    id: 'pulseWarp',
+    name: 'Pulse Warp',
+    category: 'Sequence',
+    type: 'arpeggio',
+    waveform: 'pulse',
+    dutyCycle: 0.22,
+    color: '#ec4899',
+    key: '0',
+    params: { attack: 0.001, decay: 0.05, sustain: 0.08, release: 0.12, duration: 0.26, gain: 0.58, filterHz: 10800 },
+    noteOffset: 6,
+    noteSpan: 12,
+    previewNote: 4,
+    arpPattern: 'bounce',
+    arpSubdivision: 5,
+    arpSpan: 6,
+    volume: 0.75
+  }
+];
+
+const soundboardFx = [
+  { id: 'laser', label: 'Laser', description: 'Descending pulse sweep', color: '#ff6b9d' },
+  { id: 'power', label: 'Power Up', description: 'Ascending power chord', color: '#00ff88' },
+  { id: 'hit', label: 'Impact', description: 'Short triangle stab', color: '#ffaa00' },
+  { id: 'coin', label: 'Coin', description: 'Retro pickup sparkle', color: '#00ccff' },
+  { id: 'explosion', label: 'Explosion', description: 'Noisy boom for boss fights', color: '#ff4757' }
+];
+
+const initialTrackOrder = trackLibrary.map(t => t.id);
+
 const state = {
   bpm: 120,
   steps: 16,
   swing: 0,
   playing: false,
   position: 0,
-  scheduleAhead: 0.1,
+  scheduleAhead: 0.12,
   lookahead: 0.025,
   nextTime: 0,
-  tracks: []
+  scale: {
+    root: DEFAULT_ROOT,
+    mode: DEFAULT_MODE,
+    notes: generateScale(DEFAULT_ROOT, DEFAULT_MODE, { startOctave: 2, octaves: 4 })
+  },
+  tracks: [],
+  soundboard: [],
+  selectedTrackIndex: 0
 };
 
-// Global variables
 let engine = null;
 let schedulerId = null;
 let mediaRecorder = null;
 let recordedChunks = [];
 let recStartTs = 0;
 let recTimerId = null;
+let trackCounter = 0;
 
-// Track definitions
-const defaultTracks = [
-  { name: "Kick",   key: "Q", color: "#00ff88", type: "kick",    params: { baseFreq: 55, pitchDecay: 0.03, duration: 0.8, gain: 0.95 } },
-  { name: "Snare",  key: "W", color: "#ffaa00", type: "snare",   params: { hp: 1400, lp: 8000, duration: 0.18, decay: 0.08, sustain: 0.0, release: 0.05, gain: 0.7 } },
-  { name: "Clap",   key: "E", color: "#ff6b9d", type: "clap",    params: { hp: 800, lp: 7000, duration: 0.25, decay: 0.12, gain: 0.7 } },
-  { name: "CHat",   key: "R", color: "#00ccff", type: "hat",     params: { hp: 6000, lp: 14000, duration: 0.06, decay: 0.04, gain: 0.45 } },
-  { name: "OHat",   key: "T", color: "#b8b8c8", type: "hat",     params: { hp: 4000, lp: 11000, duration: 0.18, decay: 0.10, gain: 0.4 } },
-  { name: "Tom",    key: "Y", color: "#00ccff", type: "square",  params: { duration: 0.22, decay: 0.08, sustain: 0.2, release: 0.08, gain: 0.55, filterHz: 2400 }, baseNote: "G2" },
-  { name: "Cow",    key: "U", color: "#00ff88", type: "triangle",params: { duration: 0.25, decay: 0.06, sustain: 0.3, release: 0.06, gain: 0.45, filterHz: 5000 }, baseNote: "E5" },
-  { name: "Sample", key: "I", color: "#ff6b9d", type: "sample",  params: { gain: 0.8 } }
-];
-
-const waveOptions = ["kick", "snare", "clap", "hat", "square", "triangle", "noise", "sample"];
-const scale = [
-  "C2","D2","E2","G2","A2",
-  "C3","D3","E3","G3","A3",
-  "C4","D4","E4","G4","A4",
-  "C5","D5","E5","G5","A5"
-];
-
-// Utility functions
-function noteToFreq(note) {
-  const A4 = 440;
-  const map = { C:0, 'C#':1, Db:1, D:2, 'D#':3, Eb:3, E:4, F:5, 'F#':6, Gb:6, G:7, 'G#':8, Ab:8, A:9, 'A#':10, Bb:10, B:11 };
-  const m = (note||"").toString().match(/^([A-G](?:#|b)?)(-?\d+)$/i);
-  if (!m) return 440;
-  const p = m[1];
-  const o = parseInt(m[2], 10);
-  const semitone = map[p];
-  if (!isFinite(semitone)) return 440;
-  const n = semitone + (o - 4) * 12;
-  return A4 * Math.pow(2, (n - 9) / 12);
+function assignKey(preferred) {
+  const used = new Set(state.tracks.map(t => t.key));
+  if (preferred && !used.has(preferred)) return preferred;
+  for (const key of KEY_POOL) {
+    if (!used.has(key)) return key;
+  }
+  return '';
 }
 
-// Initialize the app
+function cloneParams(params) {
+  return params ? JSON.parse(JSON.stringify(params)) : {};
+}
+
+function getTrackScale(track) {
+  const notes = state.scale.notes || [];
+  if (!notes.length) return [];
+  const span = Math.max(1, track.noteSpan || notes.length);
+  const maxOffset = Math.max(0, notes.length - span);
+  const offset = clamp(track.noteOffset || 0, 0, maxOffset);
+  track.noteOffset = offset;
+  const end = Math.min(notes.length, offset + span);
+  return notes.slice(offset, end);
+}
+
+function setPreviewNote(track, slice) {
+  if (!slice || !slice.length) {
+    track.previewNoteIndex = 0;
+    return;
+  }
+  const idx = clamp(track.previewNoteIndex ?? 0, 0, slice.length - 1);
+  track.previewNoteIndex = idx;
+}
+
+function clampTrackToScale(track) {
+  if (!track) return;
+  if (track.type === 'drum' || track.type === 'sample') {
+    track.steps = (track.steps || []).map(val => clamp(val || 0, 0, 3));
+    return;
+  }
+  const slice = getTrackScale(track);
+  if (!slice.length) {
+    track.steps = new Array(state.steps).fill(null);
+    track.previewNoteIndex = 0;
+    return;
+  }
+  track.steps = (track.steps || []).map(step => {
+    if (!step) return null;
+    const noteIndex = clamp(step.noteIndex ?? 0, 0, slice.length - 1);
+    const velocity = clamp(step.velocity ?? 2, 1, 3);
+    return { noteIndex, velocity };
+  });
+  setPreviewNote(track, slice);
+}
+
+function instantiateTrack(templateId) {
+  const template = trackLibrary.find(t => t.id === templateId);
+  if (!template) return null;
+  const key = assignKey(template.key);
+  const isRhythm = template.type === 'drum' || template.type === 'sample';
+  const baseSteps = isRhythm ? new Array(state.steps).fill(0) : new Array(state.steps).fill(null);
+  const track = {
+    uid: ++trackCounter,
+    id: trackCounter,
+    templateId: template.id,
+    name: template.name,
+    category: template.category,
+    type: template.type,
+    key,
+    color: template.color || '#00ff88',
+    params: cloneParams(template.params || {}),
+    drumType: template.drumType,
+    waveform: template.waveform || 'pulse',
+    dutyCycle: template.dutyCycle ?? 0.5,
+    arpPattern: template.arpPattern || 'up',
+    arpSubdivision: template.arpSubdivision || 4,
+    arpSpan: template.arpSpan || 4,
+    noteOffset: template.noteOffset ?? 0,
+    noteSpan: template.noteSpan ?? 12,
+    previewNoteIndex: template.previewNote ?? 0,
+    volume: template.volume ?? 0.85,
+    muted: false,
+    soloed: false,
+    steps: baseSteps,
+    sample: null,
+    _lastVolume: template.volume ?? 0.85
+  };
+  clampTrackToScale(track);
+  return track;
+}
+
+function updateScale(root, mode) {
+  state.scale.root = root;
+  state.scale.mode = mode;
+  state.scale.notes = generateScale(root, mode, { startOctave: 2, octaves: 4 });
+  state.tracks.forEach(track => clampTrackToScale(track));
+}
+
+function setStepsPerTrack(newSteps) {
+  state.steps = newSteps;
+  state.tracks.forEach(track => {
+    const length = newSteps;
+    if (track.type === 'drum' || track.type === 'sample') {
+      const next = new Array(length).fill(0);
+      (track.steps || []).forEach((val, idx) => {
+        if (idx < length) next[idx] = clamp(val || 0, 0, 3);
+      });
+      track.steps = next;
+    } else {
+      const slice = getTrackScale(track);
+      const next = new Array(length).fill(null);
+      (track.steps || []).forEach((evt, idx) => {
+        if (idx >= length || !evt || !slice.length) return;
+        next[idx] = {
+          noteIndex: clamp(evt.noteIndex ?? 0, 0, slice.length - 1),
+          velocity: clamp(evt.velocity ?? 2, 1, 3)
+        };
+      });
+      track.steps = next;
+    }
+  });
+}
+
+function ensureSoundboard() {
+  state.soundboard = soundboardFx.map(fx => ({ ...fx }));
+}
+
+function triggerSoundboardFx(id) {
+  if (!engine) return;
+  engine.resume();
+  engine.playFx(id, { time: engine.currentTime() });
+}
+
 function initApp() {
   engine = new ChipEngine();
-  buildUI();
-  setupEventListeners();
-  loadChiptune();
-  renderPresetBank();
+  window.engine = engine;
+  state.tracks = [];
+  state.selectedTrackIndex = 0;
+  updateScale(state.scale.root, state.scale.mode);
+  trackCounter = 0;
+  initialTrackOrder.forEach(id => {
+    const track = instantiateTrack(id);
+    if (track) state.tracks.push(track);
+  });
+  ensureSoundboard();
+  if (typeof buildInterface === 'function') buildInterface();
+  if (typeof setupEventListeners === 'function') setupEventListeners();
+  updateDisplay();
 }
 
-// Export for use in HTML
 window.initApp = initApp;
-window.engine = engine;
 window.state = state;
-window.defaultTracks = defaultTracks;
-window.waveOptions = waveOptions;
-window.scale = scale;
+window.trackLibrary = trackLibrary;
+window.soundboardFx = soundboardFx;
+window.instantiateTrack = instantiateTrack;
+window.assignKey = assignKey;
+window.getTrackScale = getTrackScale;
+window.clampTrackToScale = clampTrackToScale;
+window.updateScale = updateScale;
+window.setStepsPerTrack = setStepsPerTrack;
+window.triggerSoundboardFx = triggerSoundboardFx;
+window.generateScale = generateScale;
 window.noteToFreq = noteToFreq;
-window.clamp = clamp;
