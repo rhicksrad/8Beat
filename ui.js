@@ -395,6 +395,7 @@ function setupEventListeners() {
   const scaleMode = document.getElementById('scaleMode');
   const addTrackBtn = document.getElementById('addTrackBtn');
   const randomizeBtn = document.getElementById('randomizeBtn');
+  const randomizeScaleBtn = document.getElementById('randomizeScaleBtn');
   const clearBtn = document.getElementById('clearBtn');
   const loadSampleBtn = document.getElementById('loadSampleBtn');
   const loadSampleFile = document.getElementById('loadSampleFile');
@@ -478,6 +479,10 @@ function setupEventListeners() {
       updateScaleSummary();
       rebuildGrids();
     });
+  }
+
+  if (randomizeScaleBtn) {
+    randomizeScaleBtn.addEventListener('click', randomizeScale);
   }
 
   if (addTrackBtn) {
@@ -647,6 +652,30 @@ function updateScaleSummary() {
   summary.textContent = `${state.scale.root} ${modeName}`;
 }
 
+function randomizeScale() {
+  const rootSelect = document.getElementById('scaleRoot');
+  const modeSelect = document.getElementById('scaleMode');
+  if (!rootSelect || !modeSelect) return;
+
+  const rootOptions = Array.from(rootSelect.options || []);
+  const modeOptions = Array.from(modeSelect.options || []);
+  if (!rootOptions.length || !modeOptions.length) return;
+
+  const randomRootOption = rootOptions[Math.floor(Math.random() * rootOptions.length)];
+  const randomModeOption = modeOptions[Math.floor(Math.random() * modeOptions.length)];
+
+  const nextRoot = randomRootOption?.value || randomRootOption?.text || state.scale.root;
+  const nextMode = randomModeOption?.value || randomModeOption?.text || state.scale.mode;
+
+  rootSelect.value = nextRoot;
+  modeSelect.value = nextMode;
+
+  updateScale(nextRoot, nextMode);
+  refreshScalePreview();
+  updateScaleSummary();
+  rebuildGrids();
+}
+
 function adjustTrackRegister(index, delta) {
   const track = state.tracks[index];
   if (!track) return;
@@ -744,5 +773,6 @@ window.setupEventListeners = setupEventListeners;
 window.handleSampleLoad = handleSampleLoad;
 window.refreshScalePreview = refreshScalePreview;
 window.updateScaleSummary = updateScaleSummary;
+window.randomizeScale = randomizeScale;
 window.randomizePattern = randomizePattern;
 window.clearPattern = clearPattern;

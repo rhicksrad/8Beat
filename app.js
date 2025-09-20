@@ -87,7 +87,6 @@ function generateScale(root, mode, { startOctave = 2, octaves = 4 } = {}) {
   return notes;
 }
 
-
 class ChipEngine {
   constructor() {
     this.ac = null;
@@ -625,7 +624,6 @@ class ChipEngine {
 
 ChipEngine._pulseCache = new Map();
 
-
 const KEY_POOL = ['Q','W','E','R','T','Y','U','I','O','P','A','S','D','F','G','H','J','K','L','Z','X','C','V','B','N','M','1','2','3','4','5','6','7','8','9','0'];
 const DEFAULT_ROOT = 'C';
 const DEFAULT_MODE = 'minor';
@@ -694,6 +692,96 @@ const trackLibrary = [
     volume: 0.8
   },
   {
+    id: 'pulsePluck',
+    name: 'Pulse Pluck',
+    category: 'Melody',
+    type: 'melody',
+    waveform: 'pulse',
+    dutyCycle: 0.18,
+    color: '#ff9f43',
+    key: 'T',
+    params: { attack: 0.001, decay: 0.07, sustain: 0.12, release: 0.18, duration: 0.35, gain: 0.68, filterHz: 9800 },
+    noteOffset: 8,
+    noteSpan: 12,
+    previewNote: 5,
+    volume: 0.8
+  },
+  {
+    id: 'squareLead',
+    name: 'Square Lead',
+    category: 'Melody',
+    type: 'melody',
+    waveform: 'square',
+    color: '#ffd966',
+    key: 'Y',
+    params: { attack: 0.003, decay: 0.16, sustain: 0.4, release: 0.22, duration: 0.55, gain: 0.72, filterHz: 9500 },
+    noteOffset: 7,
+    noteSpan: 13,
+    previewNote: 5,
+    volume: 0.82
+  },
+  {
+    id: 'triangleGlass',
+    name: 'Triangle Glass',
+    category: 'Harmony',
+    type: 'melody',
+    waveform: 'triangle',
+    color: '#8effff',
+    key: 'U',
+    params: { attack: 0.015, decay: 0.28, sustain: 0.5, release: 0.45, duration: 0.7, gain: 0.6, filterHz: 7600 },
+    noteOffset: 10,
+    noteSpan: 16,
+    previewNote: 7,
+    volume: 0.7
+  },
+  {
+    id: 'pulseSync',
+    name: 'Pulse Sync',
+    category: 'Sequence',
+    type: 'arpeggio',
+    waveform: 'pulse',
+    dutyCycle: 0.3,
+    color: '#ff99cc',
+    key: 'I',
+    params: { attack: 0.001, decay: 0.06, sustain: 0.1, release: 0.1, duration: 0.28, gain: 0.6, filterHz: 10000 },
+    noteOffset: 5,
+    noteSpan: 10,
+    previewNote: 3,
+    arpPattern: 'up',
+    arpSubdivision: 6,
+    arpSpan: 5,
+    volume: 0.78
+  },
+  {
+    id: 'lunarPad',
+    name: 'Lunar Pad',
+    category: 'Harmony',
+    type: 'melody',
+    waveform: 'triangle',
+    color: '#8899ff',
+    key: 'O',
+    params: { attack: 0.05, decay: 0.4, sustain: 0.55, release: 0.7, duration: 0.9, gain: 0.55, filterHz: 6800 },
+    noteOffset: 9,
+    noteSpan: 18,
+    previewNote: 8,
+    volume: 0.68
+  },
+  {
+    id: 'bitVoyager',
+    name: 'Bit Voyager',
+    category: 'Melody',
+    type: 'melody',
+    waveform: 'pulse',
+    dutyCycle: 0.2,
+    color: '#ff7f50',
+    key: 'P',
+    params: { attack: 0.002, decay: 0.1, sustain: 0.22, release: 0.2, duration: 0.42, gain: 0.75, filterHz: 11000 },
+    noteOffset: 6,
+    noteSpan: 14,
+    previewNote: 4,
+    volume: 0.84
+  },
+  {
     id: 'chipKick',
     name: 'Chip Kick',
     category: 'Drums',
@@ -741,6 +829,289 @@ const trackLibrary = [
     color: '#ff85ff',
     key: 'G',
     params: { gain: 0.8 }
+  },
+  {
+    id: 'chipClap',
+    name: 'Chip Clap',
+    category: 'Drums',
+    type: 'drum',
+    drumType: 'noise',
+    color: '#ffb347',
+    key: 'H',
+    params: { hp: 1800, lp: 12000, duration: 0.15, decay: 0.08, sustain: 0.0, release: 0.15, gain: 0.65 }
+  },
+  {
+    id: 'chipTom',
+    name: 'Chip Tom',
+    category: 'Drums',
+    type: 'drum',
+    drumType: 'kick',
+    color: '#ff7f82',
+    key: 'J',
+    params: { baseFreq: 110, pitchDecay: 0.06, duration: 0.5, gain: 0.7 }
+  },
+  {
+    id: 'chipClave',
+    name: 'Chip Clave',
+    category: 'Drums',
+    type: 'drum',
+    drumType: 'noise',
+    color: '#fcd34d',
+    key: 'K',
+    params: { hp: 4000, lp: 10000, duration: 0.08, decay: 0.03, sustain: 0.0, release: 0.05, gain: 0.55 }
+  },
+  {
+    id: 'chipCrash',
+    name: 'Chip Crash',
+    category: 'Drums',
+    type: 'drum',
+    drumType: 'noise',
+    color: '#c084fc',
+    key: 'L',
+    params: { hp: 2000, lp: 14000, duration: 0.6, decay: 0.3, sustain: 0.0, release: 0.45, gain: 0.7 }
+  },
+  {
+    id: 'deepBass',
+    name: 'Deep Bass',
+    category: 'Bass',
+    type: 'melody',
+    waveform: 'pulse',
+    dutyCycle: 0.1,
+    color: '#10b981',
+    key: 'Z',
+    params: { attack: 0.002, decay: 0.1, sustain: 0.3, release: 0.18, duration: 0.4, gain: 0.85, filterHz: 3800 },
+    noteOffset: 0,
+    noteSpan: 6,
+    previewNote: 1,
+    volume: 0.9
+  },
+  {
+    id: 'pulseStab',
+    name: 'Pulse Stab',
+    category: 'Melody',
+    type: 'melody',
+    waveform: 'pulse',
+    dutyCycle: 0.35,
+    color: '#f87171',
+    key: 'X',
+    params: { attack: 0.001, decay: 0.05, sustain: 0.15, release: 0.12, duration: 0.25, gain: 0.7, filterHz: 9800 },
+    noteOffset: 5,
+    noteSpan: 10,
+    previewNote: 3,
+    volume: 0.78
+  },
+  {
+    id: 'triangleSub',
+    name: 'Triangle Sub',
+    category: 'Harmony',
+    type: 'melody',
+    waveform: 'triangle',
+    color: '#6ee7b7',
+    key: 'C',
+    params: { attack: 0.01, decay: 0.2, sustain: 0.5, release: 0.3, duration: 0.5, gain: 0.75, filterHz: 5200 },
+    noteOffset: 4,
+    noteSpan: 10,
+    previewNote: 2,
+    volume: 0.76
+  },
+  {
+    id: 'squareChord',
+    name: 'Square Chord',
+    category: 'Harmony',
+    type: 'melody',
+    waveform: 'square',
+    color: '#bef264',
+    key: 'V',
+    params: { attack: 0.02, decay: 0.18, sustain: 0.55, release: 0.35, duration: 0.6, gain: 0.6, filterHz: 8600 },
+    noteOffset: 9,
+    noteSpan: 16,
+    previewNote: 7,
+    volume: 0.72
+  },
+  {
+    id: 'pulseDream',
+    name: 'Pulse Dream',
+    category: 'Melody',
+    type: 'melody',
+    waveform: 'pulse',
+    dutyCycle: 0.4,
+    color: '#f472b6',
+    key: 'B',
+    params: { attack: 0.003, decay: 0.12, sustain: 0.3, release: 0.25, duration: 0.48, gain: 0.7, filterHz: 10500 },
+    noteOffset: 8,
+    noteSpan: 14,
+    previewNote: 6,
+    volume: 0.8
+  },
+  {
+    id: 'neoArp',
+    name: 'Neo Arp',
+    category: 'Sequence',
+    type: 'arpeggio',
+    waveform: 'pulse',
+    dutyCycle: 0.26,
+    color: '#34d399',
+    key: 'N',
+    params: { attack: 0.001, decay: 0.05, sustain: 0.08, release: 0.09, duration: 0.24, gain: 0.6, filterHz: 9800 },
+    noteOffset: 5,
+    noteSpan: 12,
+    previewNote: 4,
+    arpPattern: 'random',
+    arpSubdivision: 8,
+    arpSpan: 6,
+    volume: 0.76
+  },
+  {
+    id: 'meteorArp',
+    name: 'Meteor Arp',
+    category: 'Sequence',
+    type: 'arpeggio',
+    waveform: 'square',
+    color: '#93c5fd',
+    key: 'M',
+    params: { attack: 0.001, decay: 0.07, sustain: 0.12, release: 0.1, duration: 0.3, gain: 0.62, filterHz: 10200 },
+    noteOffset: 7,
+    noteSpan: 12,
+    previewNote: 5,
+    arpPattern: 'down',
+    arpSubdivision: 3,
+    arpSpan: 5,
+    volume: 0.78
+  },
+  {
+    id: 'pulseBlade',
+    name: 'Pulse Blade',
+    category: 'Melody',
+    type: 'melody',
+    waveform: 'pulse',
+    dutyCycle: 0.15,
+    color: '#fb7185',
+    key: '1',
+    params: { attack: 0.001, decay: 0.09, sustain: 0.25, release: 0.18, duration: 0.4, gain: 0.68, filterHz: 11500 },
+    noteOffset: 6,
+    noteSpan: 12,
+    previewNote: 4,
+    volume: 0.82
+  },
+  {
+    id: 'pulseTwinkle',
+    name: 'Pulse Twinkle',
+    category: 'Melody',
+    type: 'melody',
+    waveform: 'pulse',
+    dutyCycle: 0.45,
+    color: '#facc15',
+    key: '2',
+    params: { attack: 0.001, decay: 0.05, sustain: 0.1, release: 0.16, duration: 0.3, gain: 0.6, filterHz: 12000 },
+    noteOffset: 11,
+    noteSpan: 14,
+    previewNote: 9,
+    volume: 0.74
+  },
+  {
+    id: 'squareQuasar',
+    name: 'Square Quasar',
+    category: 'Melody',
+    type: 'melody',
+    waveform: 'square',
+    color: '#a855f7',
+    key: '3',
+    params: { attack: 0.004, decay: 0.15, sustain: 0.35, release: 0.28, duration: 0.52, gain: 0.68, filterHz: 9700 },
+    noteOffset: 8,
+    noteSpan: 14,
+    previewNote: 6,
+    volume: 0.79
+  },
+  {
+    id: 'triangleShimmer',
+    name: 'Triangle Shimmer',
+    category: 'Harmony',
+    type: 'melody',
+    waveform: 'triangle',
+    color: '#38bdf8',
+    key: '4',
+    params: { attack: 0.02, decay: 0.25, sustain: 0.55, release: 0.4, duration: 0.6, gain: 0.62, filterHz: 7500 },
+    noteOffset: 9,
+    noteSpan: 16,
+    previewNote: 7,
+    volume: 0.73
+  },
+  {
+    id: 'chipGlitch',
+    name: 'Chip Glitch',
+    category: 'Drums',
+    type: 'drum',
+    drumType: 'noise',
+    color: '#fb923c',
+    key: '5',
+    params: { hp: 2500, lp: 10000, duration: 0.2, decay: 0.12, sustain: 0.05, release: 0.18, gain: 0.6 }
+  },
+  {
+    id: 'chipZap',
+    name: 'Chip Zap',
+    category: 'Drums',
+    type: 'drum',
+    drumType: 'noise',
+    color: '#22d3ee',
+    key: '6',
+    params: { hp: 5000, lp: 12000, duration: 0.1, decay: 0.04, sustain: 0.0, release: 0.1, gain: 0.55 }
+  },
+  {
+    id: 'chip808',
+    name: 'Chip 808',
+    category: 'Drums',
+    type: 'drum',
+    drumType: 'kick',
+    color: '#f97316',
+    key: '7',
+    params: { baseFreq: 45, pitchDecay: 0.05, duration: 1.0, gain: 0.9 }
+  },
+  {
+    id: 'pulseMono',
+    name: 'Pulse Mono',
+    category: 'Bass',
+    type: 'melody',
+    waveform: 'pulse',
+    dutyCycle: 0.22,
+    color: '#60a5fa',
+    key: '8',
+    params: { attack: 0.002, decay: 0.1, sustain: 0.22, release: 0.16, duration: 0.36, gain: 0.72, filterHz: 9200 },
+    noteOffset: 4,
+    noteSpan: 11,
+    previewNote: 3,
+    volume: 0.8
+  },
+  {
+    id: 'triangleWave',
+    name: 'Triangle Wave',
+    category: 'Melody',
+    type: 'melody',
+    waveform: 'triangle',
+    color: '#4ade80',
+    key: '9',
+    params: { attack: 0.012, decay: 0.22, sustain: 0.45, release: 0.35, duration: 0.5, gain: 0.66, filterHz: 8000 },
+    noteOffset: 7,
+    noteSpan: 13,
+    previewNote: 5,
+    volume: 0.77
+  },
+  {
+    id: 'pulseWarp',
+    name: 'Pulse Warp',
+    category: 'Sequence',
+    type: 'arpeggio',
+    waveform: 'pulse',
+    dutyCycle: 0.22,
+    color: '#ec4899',
+    key: '0',
+    params: { attack: 0.001, decay: 0.05, sustain: 0.08, release: 0.12, duration: 0.26, gain: 0.58, filterHz: 10800 },
+    noteOffset: 6,
+    noteSpan: 12,
+    previewNote: 4,
+    arpPattern: 'bounce',
+    arpSubdivision: 5,
+    arpSpan: 6,
+    volume: 0.75
   }
 ];
 
@@ -752,7 +1123,7 @@ const soundboardFx = [
   { id: 'explosion', label: 'Explosion', description: 'Noisy boom for boss fights', color: '#ff4757' }
 ];
 
-const initialTrackOrder = ['pulseLead', 'chipBass', 'arpRunner', 'trianglePad', 'chipKick', 'chipSnare', 'chipHat', 'chipPerc'];
+const initialTrackOrder = trackLibrary.map(t => t.id);
 
 const state = {
   bpm: 120,
